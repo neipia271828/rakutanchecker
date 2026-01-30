@@ -15,6 +15,7 @@ function App() {
   return (
     <BrowserRouter basename={basename}>
       <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
