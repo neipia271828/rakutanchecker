@@ -71,8 +71,12 @@ jobs:
               python3 -m venv venv
             fi
             source venv/bin/activate
+            # Upgrade pip to avoid issues
+            pip install --upgrade pip
             pip install -r requirements.txt
-            python manage.py migrate
-            python manage.py collectstatic --noinput
-            # Restart Gunicorn service (assuming it's set up as rakutan-backend.service)
+            # Use python from venv explicitly if needed, but source should work.
+            # Using python3 just in case python is not linked.
+            python3 manage.py migrate
+            python3 manage.py collectstatic --noinput
+            # Restart Gunicorn service
             sudo systemctl restart rakutan-backend
