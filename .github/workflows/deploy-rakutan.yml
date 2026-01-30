@@ -79,4 +79,4 @@ jobs:
             python3 manage.py migrate
             python3 manage.py collectstatic --noinput
             # Restart Gunicorn service
-            sudo systemctl restart rakutan-backend
+            # sudo systemctl restart rakutan-backend
