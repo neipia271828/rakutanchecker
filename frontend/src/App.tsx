@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Layout from './components/Layout';
@@ -12,17 +12,15 @@ const DebugInfo = () => {
   return (
     <div style={{ position: 'fixed', bottom: 0, left: 0, background: 'rgba(0,0,0,0.8)', color: 'lime', padding: '10px', zIndex: 9999 }}>
       <p>Mode: {import.meta.env.MODE}</p>
-      <p>Basename Setting: {import.meta.env.MODE === 'production' ? '/rakutan' : '/'}</p>
+      <p>Router: HashRouter</p>
       <p>Pathname: {location.pathname}</p>
-      <p>Search: {location.search}</p>
     </div>
   );
 };
 
 function App() {
-  const basename = import.meta.env.MODE === 'production' ? '/rakutan' : '/';
   return (
-    <BrowserRouter basename={basename}>
+    <HashRouter>
       <DebugInfo />
       <Routes>
         {/* Wildcard to catch everything and show what's happening */}
@@ -45,7 +43,7 @@ function App() {
           <Route path="/courses/:id" element={<CourseDetail />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
