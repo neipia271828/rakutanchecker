@@ -78,5 +78,16 @@ jobs:
             # Using python3 just in case python is not linked.
             python3 manage.py migrate
             python3 manage.py collectstatic --noinput
-            # Restart Gunicorn service
-            # sudo systemctl restart rakutan-backend
+
+      - name: Restart Gunicorn Service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            # Restart Gunicorn service (requires sudo access)
+            sudo systemctl restart rakutan-backend
+            # Check service status
+            sudo systemctl is-active rakutan-backend

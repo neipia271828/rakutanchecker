@@ -11,9 +11,17 @@ import json
 import os
 
 # #region agent log
-LOG_PATH = '/Users/suzukiakiramuki/playground/rakutanchecker/.cursor/debug.log'
+LOG_PATH = os.environ.get('DEBUG_LOG_PATH', '/var/log/rakutan-backend/debug.log')
 def _log_debug(location, message, data, hypothesis_id=None):
     try:
+        # Create log directory if it doesn't exist
+        log_dir = os.path.dirname(LOG_PATH)
+        if log_dir and not os.path.exists(log_dir):
+            try:
+                os.makedirs(log_dir, exist_ok=True)
+            except (OSError, PermissionError):
+                # If we can't create the log directory, silently skip logging
+                return
         with open(LOG_PATH, 'a') as f:
             log_entry = {
                 'sessionId': 'debug-session',

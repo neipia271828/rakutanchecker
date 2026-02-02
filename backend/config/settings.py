@@ -22,12 +22,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-0af6rfj0u78#*x=339f@#h^(=k_%olf*m7-^-^rm+*3z5zgm#7'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-0af6rfj0u78#*x=339f@#h^(=k_%olf*m7-^-^rm+*3z5zgm#7')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['133.125.84.34', 'localhost', '127.0.0.1', 'pai314.jp']
+# Validate SECRET_KEY in production
+if not DEBUG and SECRET_KEY == 'django-insecure-0af6rfj0u78#*x=339f@#h^(=k_%olf*m7-^-^rm+*3z5zgm#7':
+    raise ValueError("SECRET_KEY must be set to a secure value in production")
+
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '133.125.84.34,localhost,127.0.0.1,pai314.jp').split(',')
+ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS if host.strip()]
 
 
 # Application definition
@@ -151,11 +156,14 @@ DATABASES = {
 }
 
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://133.125.84.34",
-]
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    'CORS_ALLOWED_ORIGINS',
+    "http://localhost:5173,http://127.0.0.1:5173,https://pai314.jp,http://pai314.jp,http://133.125.84.34,https://133.125.84.34"
+).split(',')
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS if origin.strip()]
+
+# Additional CORS settings for production
+CORS_ALLOW_CREDENTIALS = True
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
