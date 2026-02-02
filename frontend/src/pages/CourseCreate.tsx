@@ -7,6 +7,7 @@ const CourseCreate: React.FC = () => {
     const [name, setName] = useState('');
     const [year, setYear] = useState(new Date().getFullYear());
     const [term, setTerm] = useState('early');
+    const [totalClasses, setTotalClasses] = useState(15);
     const [isRequired, setIsRequired] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -16,6 +17,7 @@ const CourseCreate: React.FC = () => {
                 name,
                 year,
                 term,
+                total_classes: totalClasses,
                 is_required: isRequired
             });
             // Redirect to the new course detail
@@ -70,6 +72,19 @@ const CourseCreate: React.FC = () => {
                                 <option value="full_year">通年 (Full Year)</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label htmlFor="totalClasses">授業数 (Number of Classes)</label>
+                        <input
+                            id="totalClasses"
+                            type="number"
+                            value={totalClasses}
+                            onChange={e => setTotalClasses(parseInt(e.target.value))}
+                            required
+                            min={1}
+                            style={{ padding: '0.8rem', borderRadius: 'var(--radius)', border: '1px solid var(--bg-elevated)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                        />
                     </div>
 
                     <div className="flex items-center gap-1">

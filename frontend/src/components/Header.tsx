@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import api from '../api';
 
 const Header: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const [displayName, setDisplayName] = useState<string | null>(null);
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -12,6 +14,31 @@ const Header: React.FC = () => {
 
     // Simple check to highlight active link
     const isActive = (path: string) => location.pathname === path;
+
+    useEffect(() => {
+        let cancelled = false;
+        const fetchMe = async () => {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setDisplayName(null);
+                return;
+            }
+            try {
+                const res = await api.get('me/');
+                if (cancelled) return;
+                const name = res.data?.full_name || res.data?.username || null;
+                setDisplayName(name);
+            } catch (err) {
+                if (!cancelled) {
+                    setDisplayName(null);
+                }
+            }
+        };
+        fetchMe();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     return (
         <header style={{
@@ -56,6 +83,25 @@ const Header: React.FC = () => {
                 >
                     カレンダー
                 </Link>
+                {displayName && (
+                    <div
+                        style={{
+                            marginLeft: '0.75rem',
+                            padding: '0.35rem 0.8rem',
+                            borderRadius: '999px',
+                            backgroundColor: 'var(--bg-elevated)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.9rem',
+                            maxWidth: '220px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                        }}
+                        title={displayName}
+                    >
+                        {displayName}
+                    </div>
+                )}
                 <button
                     onClick={handleLogout}
                     style={{

@@ -4,6 +4,8 @@ export interface Course {
     year: number;
     term: 'early' | 'late' | 'full_year';
     is_required: boolean;
+    total_classes: number;
+    attendance_mask: number;
     summary?: CourseSummary;
 }
 
@@ -39,5 +41,10 @@ export interface CourseSummary {
     deficit: number;
     is_fail_predicted: boolean;
     is_certain_fail: boolean;
+    attendance_rate: number;
+    current_attended: number;
+    attendance_threshold: number;
+    is_attendance_fail: boolean;
+    is_attendance_safe: boolean;
     threshold: number;
 }

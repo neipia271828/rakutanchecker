@@ -1,0 +1,31 @@
+#!/usr/bin/expect
+
+set timeout 30
+set host "ubuntu@133.125.84.34"
+set password "o4UjZgxlK7pl"
+# Regex to match prompt (ending with $ or # and a space)
+set prompt_re {[$#] }
+
+spawn ssh $host
+expect {
+    "yes/no" { send "yes\r"; exp_continue }
+    "password:" { send "$password\r" }
+}
+expect -re $prompt_re
+
+send_user "\n=== Check Systemd Logs ===\n"
+send "sudo journalctl -u rakutan-backend -n 50 --no-pager\r"
+expect {
+    "password" { send "$password\r"; exp_continue }
+    -re $prompt_re
+}
+
+send_user "\n=== Check Permissions ===\n"
+send "ls -l /var/www/rakutan-backend/db.sqlite3\r"
+expect -re $prompt_re
+
+send "ls -ld /var/www/rakutan-backend\r"
+expect -re $prompt_re
+
+send "exit\r"
+expect eof

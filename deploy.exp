@@ -1,0 +1,86 @@
+#!/usr/bin/expect
+
+set timeout 300
+set host "ubuntu@133.125.84.34"
+set password "o4UjZgxlK7pl"
+
+# Function to handle rsync (auth + wait for completion)
+proc run_rsync {password} {
+    expect {
+        "yes/no" {
+            send "yes\r"
+            exp_continue
+        }
+        "password:" {
+            send "$password\r"
+            exp_continue
+        }
+        eof {
+            return
+        }
+    }
+}
+
+# Function to handle ssh login (auth + wait for prompt)
+proc run_ssh_login {password} {
+    expect {
+        "yes/no" {
+            send "yes\r"
+            exp_continue
+        }
+        "password:" {
+            send "$password\r"
+            exp_continue
+        }
+        "ubuntu" {
+            return
+        }
+    }
+}
+
+# 1. Deploy Frontend
+send_user "\n=== Deploying Frontend ===\n"
+spawn rsync -avz --delete frontend/dist/ $host:/var/www/pai314/rakutan/
+run_rsync $password
+
+# 2. Deploy Backend
+send_user "\n=== Deploying Backend ===\n"
+spawn rsync -avz --exclude "venv" --exclude ".venv" --exclude "db.sqlite3" --exclude "__pycache__" --exclude "*.pyc" backend/ $host:/var/www/rakutan-backend/
+run_rsync $password
+
+# 3. Remote Commands
+send_user "\n=== Running Remote Commands ===\n"
+spawn ssh $host
+run_ssh_login $password
+
+# Set up environment and update
+send "cd /var/www/rakutan-backend\r"
+expect "ubuntu"
+
+# Create venv (clean)
+send "rm -rf venv\r"
+expect "ubuntu"
+send "python3 -m venv venv\r"
+expect "ubuntu"
+
+# Activate venv and install reqs
+send "source venv/bin/activate\r"
+expect "ubuntu"
+send "pip install -r requirements.txt\r"
+expect "ubuntu"
+
+# Migrate
+send "python3 manage.py migrate\r"
+expect "ubuntu"
+
+# Collect Static
+send "python3 manage.py collectstatic --noinput\r"
+expect "ubuntu"
+
+# Restart Service (sudo required)
+# Note: sudo might ask for password again.
+send "echo '$password' | sudo -S systemctl restart rakutan-backend\r"
+expect "ubuntu"
+
+send "exit\r"
+expect eof

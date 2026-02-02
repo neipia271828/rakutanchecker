@@ -6,11 +6,17 @@ import type { Course } from '../types';
 const Dashboard: React.FC = () => {
     const [courses, setCourses] = useState<Course[]>([]);
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
+    const [isAdmin, setIsAdmin] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
-        const fetchCourses = async () => {
+        const fetchData = async () => {
             try {
+                // Fetch user info to check if admin
+                const userRes = await api.get('me/');
+                setIsAdmin(userRes.data.is_staff || false);
+
+                // Fetch courses
                 const res = await api.get('courses/');
                 // Sort by deficit descending (highest risk first), then name
                 const sorted = (res.data as Course[]).sort((a, b) => {
@@ -27,7 +33,7 @@ const Dashboard: React.FC = () => {
                 }
             }
         };
-        fetchCourses();
+        fetchData();
     }, [navigate]);
 
     return (
@@ -62,18 +68,21 @@ const Dashboard: React.FC = () => {
                         </button>
                     </div>
                 </div>
-                <button
-                    onClick={() => navigate('/courses/new')}
-                    style={{ backgroundColor: 'var(--primary)', color: '#000' }}
-                >
-                    + New Course
-                </button>
+                {isAdmin && (
+                    <button
+                        onClick={() => navigate('/courses/new')}
+                        style={{ backgroundColor: 'var(--primary)', color: '#000' }}
+                    >
+                        + New Course
+                    </button>
+                )}
             </div>
 
             {viewMode === 'grid' ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
                     {courses.map(course => {
                         const summary = course.summary;
+                        const isNoData = (summary?.current_score ?? 0) === 0;
                         const isRisky = summary?.is_fail_predicted;
                         const isCertainFail = summary?.is_certain_fail;
                         const deficit = summary?.deficit || 0;
@@ -86,7 +95,7 @@ const Dashboard: React.FC = () => {
                                 style={{
                                     cursor: 'pointer',
                                     transition: 'transform 0.2s',
-                                    borderLeft: isCertainFail ? '4px solid var(--error)' : isRisky ? '4px solid var(--warning)' : '4px solid var(--success)'
+                                    borderLeft: isNoData ? '4px solid var(--border)' : (isCertainFail ? '4px solid var(--error)' : isRisky ? '4px solid var(--warning)' : '4px solid var(--success)')
                                 }}
                                 onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
                                 onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
@@ -110,6 +119,7 @@ const Dashboard: React.FC = () => {
                                     )}
                                 </div>
                                 {isCertainFail && <div className="text-error" style={{ marginTop: '0.5rem', fontWeight: 'bold' }}>落単確定 (最大点不足)</div>}
+                                {summary?.is_attendance_fail && <div className="text-error" style={{ marginTop: '0.5rem', fontWeight: 'bold' }}>出席不足 (欠席 &gt; 1/3)</div>}
                             </div>
                         )
                     })}
@@ -130,6 +140,7 @@ const Dashboard: React.FC = () => {
                         <tbody>
                             {courses.map(course => {
                                 const summary = course.summary;
+                                const isNoData = (summary?.current_score ?? 0) === 0;
                                 const isRisky = summary?.is_fail_predicted;
                                 const isCertainFail = summary?.is_certain_fail;
 
@@ -164,7 +175,11 @@ const Dashboard: React.FC = () => {
                                             {summary?.max_score?.toFixed(1) ?? '-'}
                                         </td>
                                         <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                            {isCertainFail ? (
+                                            {isNoData ? (
+                                                <span style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}>未入力</span>
+                                            ) : summary?.is_attendance_fail ? (
+                                                <span className="text-error" style={{ fontWeight: 'bold' }}>出席不足</span>
+                                            ) : isCertainFail ? (
                                                 <span className="text-error" style={{ fontWeight: 'bold' }}>不可</span>
                                             ) : isRisky ? (
                                                 <span className="text-warning" style={{ fontWeight: 'bold' }}>注意</span>

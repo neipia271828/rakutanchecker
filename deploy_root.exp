@@ -1,0 +1,64 @@
+#!/usr/bin/expect
+
+set timeout 600
+set host "ubuntu@133.125.84.34"
+set password "o4UjZgxlK7pl"
+set prompt_re {[$#] }
+
+# ------------------------------------------------------------------
+# Phase 1: Build & Transfer Files
+# ------------------------------------------------------------------
+send_user "\n=== Building Frontend ===\n"
+
+# catch the build error but continue if it's just warnings, or exit if critical
+if {[catch {exec npm run build --prefix frontend} result]} {
+    send_user "\nBuild Output: $result\n"
+}
+
+proc run_rsync {password} {
+    expect {
+        "yes/no" { send "yes\r"; exp_continue }
+        "password:" { send "$password\r"; exp_continue }
+        eof { return }
+    }
+}
+
+# 1. Create Directories & Fix Permissions (Quick SSH command)
+# Allow group write for www-data interaction if needed, though we run as ubuntu
+send_user "\n=== Setting up Directories and Permissions ===\n"
+set setup_cmd "echo '$password' | sudo -S mkdir -p /var/www/rakutan-frontend /var/www/rakutan-backend && \
+echo '$password' | sudo -S chown -R ubuntu:ubuntu /var/www/rakutan-frontend /var/www/rakutan-backend && \
+echo '$password' | sudo -S chmod -R 755 /var/www/rakutan-backend && \
+echo '$password' | sudo -S touch /var/www/rakutan-backend/db.sqlite3 && \
+echo '$password' | sudo -S chmod 664 /var/www/rakutan-backend/db.sqlite3"
+
+spawn ssh $host $setup_cmd
+expect {
+    "yes/no" { send "yes\r"; exp_continue }
+    "password:" { send "$password\r"; exp_continue }
+    eof
+}
+
+# 2. Rsync Files
+send_user "\n=== Syncing Frontend ===\n"
+spawn rsync -avz --delete frontend/dist/ $host:/var/www/rakutan-frontend/
+run_rsync $password
+
+send_user "\n=== Syncing Backend ===\n"
+spawn rsync -avz --exclude "venv" --exclude ".venv" --exclude "db.sqlite3" --exclude "__pycache__" --exclude "*.pyc" backend/ $host:/var/www/rakutan-backend/
+run_rsync $password
+
+# 3. Upload Configs & Script
+spawn scp rakutan_nginx.conf finalize_remote.sh $host:~/
+run_rsync $password
+
+# ------------------------------------------------------------------
+# Phase 2: Finalize Remote Setup
+# ------------------------------------------------------------------
+send_user "\n=== Finalizing Setup ===\n"
+spawn ssh $host "chmod +x ~/finalize_remote.sh && ~/finalize_remote.sh"
+expect {
+    "password:" { send "$password\r"; exp_continue }
+    "Deployment Finished" { return }
+    eof
+}

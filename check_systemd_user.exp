@@ -1,0 +1,18 @@
+#!/usr/bin/expect
+
+set timeout 30
+set host "ubuntu@133.125.84.34"
+set password "o4UjZgxlK7pl"
+
+spawn ssh $host
+expect {
+    "yes/no" { send "yes\r"; exp_continue }
+    "password:" { send "$password\r" }
+}
+expect "ubuntu"
+
+send "cat /etc/systemd/system/rakutan-backend.service\r"
+expect "ubuntu"
+
+send "exit\r"
+expect eof

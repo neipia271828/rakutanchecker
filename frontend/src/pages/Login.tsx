@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Login: React.FC = () => {
@@ -9,14 +9,16 @@ const Login: React.FC = () => {
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        // Ensure token is cleared before request to avoid Invalid token error from server
+        localStorage.removeItem('token');
+
         try {
-            // Use direct URL for token endpoint as it might not be under /api/
-            const res = await axios.post('http://localhost:8000/api-token-auth/', { username, password });
+            const res = await api.post('login/', { username, password });
             localStorage.setItem('token', res.data.token);
             navigate('/dashboard');
         } catch (err) {
             console.error(err);
-            alert('Login failed. Please check your credentials.');
+            alert('Login failed');
         }
     };
 

@@ -94,19 +94,49 @@ class CalculationService:
         return weighted_score_sum / total_weight
 
     @staticmethod
-    def get_course_summary(course, user):
+    def get_course_summary(course, user, enrollment=None):
         """
         Returns summary dictionary with current, predicted, max scores and strict fail status.
         Handles unallocated weights by treating root's children weights as absolute percentages of the course.
+        
+        Args:
+            course: Course instance
+            user: User instance
+            enrollment: CourseEnrollment instance (optional, will be fetched if not provided)
         """
+        # Attendance Calculation is needed even if there are no evaluation nodes.
+        if enrollment is None:
+            from .models import CourseEnrollment
+            enrollment = CourseEnrollment.objects.filter(user=user, course=course).first()
+
+        mask = enrollment.attendance_mask if enrollment else 0
+        # sqlite BigIntegerField may return int; ensure int for bin()
+        try:
+            mask_int = int(mask)
+        except Exception:
+            mask_int = 0
+        current_attended = bin(mask_int).count('1')
+        total_classes = course.total_classes if getattr(course, 'total_classes', 0) and course.total_classes > 0 else 15
+        attendance_rate = (current_attended / total_classes) * 100.0
+        attendance_threshold = 66.67
+        is_attendance_fail = attendance_rate < attendance_threshold
+        is_attendance_safe = attendance_rate >= attendance_threshold
+
         roots = course.nodes.filter(parent__isnull=True)
         if not roots.exists():
+            # No evaluation nodes yet: return zero scores, but include attendance fields to avoid NaN in UI
             return {
-                'current_score': 0.0, 
-                'predicted_score': 0.0, 
+                'current_score': 0.0,
+                'predicted_score': 0.0,
                 'max_score': 0.0,
+                'deficit': 0.0,
                 'is_fail_predicted': False,
                 'is_certain_fail': False,
+                'attendance_rate': round(attendance_rate, 2),
+                'current_attended': current_attended,
+                'attendance_threshold': attendance_threshold,
+                'is_attendance_fail': is_attendance_fail,
+                'is_attendance_safe': is_attendance_safe,
                 'threshold': 60.0
             }
 
@@ -235,6 +265,8 @@ class CalculationService:
             
         is_fail_predicted = predicted_score < threshold_val
         is_certain_fail = max_score < threshold_val
+
+        # Attendance fields already computed above (always present)
         
         return {
             'current_score': round(current_score, 2),
@@ -243,5 +275,10 @@ class CalculationService:
             'deficit': round(max(0, threshold_val - predicted_score), 2),
             'is_fail_predicted': is_fail_predicted,
             'is_certain_fail': is_certain_fail,
+            'attendance_rate': round(attendance_rate, 2),
+            'current_attended': current_attended,
+            'attendance_threshold': attendance_threshold,
+            'is_attendance_fail': is_attendance_fail,
+            'is_attendance_safe': is_attendance_safe,
             'threshold': threshold_val
         }

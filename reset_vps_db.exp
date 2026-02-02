@@ -1,0 +1,49 @@
+#!/usr/bin/expect
+
+set timeout 300
+set host "ubuntu@133.125.84.34"
+set password "o4UjZgxlK7pl"
+
+# Function to handle ssh login
+proc run_ssh_login {password} {
+    expect {
+        "yes/no" {
+            send "yes\r"
+            exp_continue
+        }
+        "password:" {
+            send "$password\r"
+            exp_continue
+        }
+        "ubuntu" {
+            return
+        }
+    }
+}
+
+send_user "\n=== Resetting VPS Database ===\n"
+spawn ssh $host
+run_ssh_login $password
+
+# Go to directory
+send "cd /var/www/rakutan-backend\r"
+expect "ubuntu"
+
+# Activate venv
+send "source venv/bin/activate\r"
+expect "ubuntu"
+
+# Remove DB
+send "rm db.sqlite3\r"
+expect "ubuntu"
+
+# Run migrations to recreate DB
+send "python3 manage.py migrate\r"
+expect "ubuntu"
+
+# Restart service
+send "echo '$password' | sudo -S systemctl restart rakutan-backend\r"
+expect "ubuntu"
+
+send "exit\r"
+expect eof

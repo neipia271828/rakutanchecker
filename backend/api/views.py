@@ -7,11 +7,73 @@ from .models import Course, EvalNode, EvalEntry, Threshold
 from .serializers import CourseSerializer, EvalNodeSerializer, EvalEntrySerializer, CourseSummarySerializer, EvalNodeFlatSerializer, RegisterSerializer, UserSerializer
 
 from .services import CalculationService
+import json
+import os
+
+# #region agent log
+LOG_PATH = '/Users/suzukiakiramuki/playground/rakutanchecker/.cursor/debug.log'
+def _log_debug(location, message, data, hypothesis_id=None):
+    try:
+        with open(LOG_PATH, 'a') as f:
+            log_entry = {
+                'sessionId': 'debug-session',
+                'runId': 'run1',
+                'hypothesisId': hypothesis_id,
+                'location': location,
+                'message': message,
+                'data': data,
+                'timestamp': int(__import__('time').time() * 1000)
+            }
+            f.write(json.dumps(log_entry) + '\n')
+    except Exception:
+        pass
+# #endregion
 
 class RegisterView(generics.CreateAPIView):
     queryset = UserSerializer.Meta.model.objects.all()
+    authentication_classes = []
     permission_classes = (permissions.AllowAny,)
     serializer_class = RegisterSerializer
+    
+    def create(self, request, *args, **kwargs):
+        # #region agent log
+        _log_debug('views.py:RegisterView.create', '登録リクエスト受信', {
+            'username': request.data.get('username'),
+            'email': request.data.get('email'),
+            'has_full_name': 'full_name' in request.data,
+            'has_student_id': 'student_id' in request.data,
+            'has_date_of_birth': 'date_of_birth' in request.data,
+            'has_enrollment_year': 'enrollment_year' in request.data
+        }, 'H1')
+        # #endregion
+        
+        try:
+            response = super().create(request, *args, **kwargs)
+            # #region agent log
+            _log_debug('views.py:RegisterView.create', '登録成功', {
+                'status_code': response.status_code,
+                'user_id': response.data.get('id') if hasattr(response, 'data') else None
+            }, 'H1')
+            # #endregion
+            return response
+        except Exception as e:
+            # #region agent log
+            _log_debug('views.py:RegisterView.create', '登録エラー', {
+                'error': str(e),
+                'error_type': type(e).__name__,
+                'request_data': {k: str(v)[:100] for k, v in request.data.items()}
+            }, 'H1')
+            # #endregion
+            raise
+
+
+class CurrentUserView(generics.RetrieveAPIView):
+    """Return current authenticated user information"""
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserSerializer
+    
+    def get_object(self):
+        return self.request.user
 
 class IsOwner(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
@@ -34,20 +96,68 @@ class IsOwner(permissions.BasePermission):
         # I need to add `user` field to `Course` model.
         return obj.user == request.user
 
+
+class IsAdminOrReadOnly(permissions.BasePermission):
+    """
+    Custom permission to only allow admins to create courses.
+    All authenticated users can view courses.
+    """
+    def has_permission(self, request, view):
+        # Read permissions are allowed to any authenticated user
+        if request.method in permissions.SAFE_METHODS:
+            return request.user and request.user.is_authenticated
+        
+        # Write permissions (POST, PUT, PATCH, DELETE) are only allowed to admin users
+        return request.user and request.user.is_staff
+
+
 class CourseViewSet(viewsets.ModelViewSet):
     serializer_class = CourseSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+
+    def get_permissions(self):
+        if self.action in {'entries', 'summary', 'attendance', 'update_attendance'}:
+            return [permissions.IsAuthenticated()]
+        return [permission() for permission in self.permission_classes]
 
     def get_queryset(self):
-        # Filter courses by user.
-        # But wait, Course model doesn't have user! I need to fix this.
-        # Assuming I fix Course model to have `user`.
-        return Course.objects.filter(user=self.request.user)
+        """
+        Return courses for the user's enrollment year.
+        Admins see all courses.
+        """
+        user = self.request.user
+        
+        if user.is_staff:
+            # Admins see all courses
+            return Course.objects.all()
+        
+        # Students see courses for their enrollment year
+        try:
+            enrollment_year = user.profile.enrollment_year
+            if enrollment_year:
+                return Course.objects.filter(target_enrollment_year=enrollment_year)
+        except:
+            pass
+        
+        # If no enrollment year, return empty queryset
+        return Course.objects.none()
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        """Only admins can create courses"""
+        course = serializer.save()
+        
+        # 自動的に「全体評価 (100%)」ルートノードを作成
+        EvalNode.objects.create(
+            course=course,
+            parent=None,
+            name='全体評価',
+            weight=100,
+            input_type=EvalNode.InputType.NONE,
+            is_leaf=False,
+            order=0
+        )
 
-    @action(detail=True, methods=['get', 'post'])
+    @action(detail=True, methods=['get', 'post'], permission_classes=[permissions.IsAuthenticated])
     def nodes(self, request, pk=None):
         course = self.get_object()
         
@@ -70,7 +180,27 @@ class CourseViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def summary(self, request, pk=None):
         course = self.get_object()
-        summary = CalculationService.get_course_summary(course, request.user)
+        # Get or create enrollment
+        from .models import CourseEnrollment
+        enrollment, _ = CourseEnrollment.objects.get_or_create(user=request.user, course=course)
+        # #region agent log
+        _log_debug('views.py:CourseViewSet.summary', 'summary計算開始', {
+            'course_id': course.id,
+            'user_id': request.user.id,
+            'total_classes': getattr(course, 'total_classes', None),
+            'enrollment_attendance_mask': getattr(enrollment, 'attendance_mask', None),
+            'has_roots': course.nodes.filter(parent__isnull=True).exists()
+        }, 'ATT')
+        # #endregion
+        summary = CalculationService.get_course_summary(course, request.user, enrollment)
+        # #region agent log
+        _log_debug('views.py:CourseViewSet.summary', 'summary計算完了', {
+            'course_id': course.id,
+            'keys': list(summary.keys()),
+            'attendance_rate': summary.get('attendance_rate'),
+            'current_attended': summary.get('current_attended')
+        }, 'ATT')
+        # #endregion
         return Response(summary)
 
     @action(detail=True, methods=['get', 'post'])
@@ -114,6 +244,24 @@ class CourseViewSet(viewsets.ModelViewSet):
         
         return Response({'value': threshold.value})
 
+    @action(detail=True, methods=['patch'], url_path='attendance', permission_classes=[permissions.IsAuthenticated])
+    def update_attendance(self, request, pk=None):
+        """Update attendance mask for the user's enrollment"""
+        course = self.get_object()
+        from .models import CourseEnrollment
+        
+        # Get or create enrollment
+        enrollment, _ = CourseEnrollment.objects.get_or_create(user=request.user, course=course)
+        
+        # Update attendance mask
+        attendance_mask = request.data.get('attendance_mask')
+        if attendance_mask is not None:
+            enrollment.attendance_mask = int(attendance_mask)
+            enrollment.save()
+            return Response({'attendance_mask': enrollment.attendance_mask})
+        
+        return Response({'error': 'attendance_mask is required'}, status=status.HTTP_400_BAD_REQUEST)
+
 from .serializers import EventSerializer
 
 class EventViewSet(viewsets.ReadOnlyModelViewSet):
@@ -121,4 +269,7 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return EvalNode.objects.filter(course__user=self.request.user, due_date__isnull=False).order_by('due_date')
+        from .models import CourseEnrollment
+        # Get courses the user is enrolled in
+        enrolled_courses = CourseEnrollment.objects.filter(user=self.request.user).values_list('course_id', flat=True)
+        return EvalNode.objects.filter(course_id__in=enrolled_courses, due_date__isnull=False).order_by('due_date')

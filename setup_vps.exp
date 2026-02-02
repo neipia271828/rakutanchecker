@@ -14,25 +14,25 @@ expect {
     }
 }
 
-expect "$ "
+expect "ubuntu"
 
 # 1. Directories & Permissions
 send "echo 'o4UjZgxlK7pl' | sudo -S mkdir -p /var/www/pai314/rakutan /var/www/rakutan-backend\r"
-expect "$ "
+expect "ubuntu"
 send "echo 'o4UjZgxlK7pl' | sudo -S chown -R ubuntu:ubuntu /var/www/pai314/rakutan /var/www/rakutan-backend\r"
-expect "$ "
+expect "ubuntu"
 
 # 2. Python Environment
 send "echo 'o4UjZgxlK7pl' | sudo -S apt update\r"
-expect "$ "
+expect "ubuntu"
 send "echo 'o4UjZgxlK7pl' | sudo -S apt install -y python3-pip python3-venv\r"
-expect "$ "
+expect "ubuntu"
 send "cd /var/www/rakutan-backend && python3 -m venv venv\r"
-expect "$ "
+expect "ubuntu"
 
 # 3. Systemd Service
 send "echo 'Creating systemd service...'\r"
-expect "$ "
+expect "ubuntu"
 set service_content {[Unit]
 Description=gunicorn daemon for rakutan-backend
 After=network.target
@@ -47,12 +47,12 @@ ExecStart=/var/www/rakutan-backend/venv/bin/gunicorn --access-logfile - --worker
 WantedBy=multi-user.target
 }
 send "echo '$service_content' | sudo tee /etc/systemd/system/rakutan-backend.service > /dev/null\r"
-expect "$ "
+expect "ubuntu"
 
 send "sudo systemctl daemon-reload\r"
-expect "$ "
+expect "ubuntu"
 send "sudo systemctl enable rakutan-backend\r"
-expect "$ "
+expect "ubuntu"
 
 # 4. Nginx Config (Append to existing conf? Or create new?)
 # The user wants to integrate into existing pai314.jp.

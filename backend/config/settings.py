@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+from urllib.parse import urlparse, parse_qs
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,7 +27,7 @@ SECRET_KEY = 'django-insecure-0af6rfj0u78#*x=339f@#h^(=k_%olf*m7-^-^rm+*3z5zgm#7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['133.125.84.34', 'localhost', '127.0.0.1', 'pai314.jp']
 
 
 # Application definition
@@ -80,23 +81,86 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': os.environ.get('DB_ENGINE', 'django.db.backends.sqlite3'),
-        'NAME': os.environ.get('DB_NAME', BASE_DIR / 'db.sqlite3'),
+def _normalize_db_engine(engine: str) -> str:
+    if engine in {'postgres', 'postgresql'}:
+        return 'django.db.backends.postgresql'
+    if engine in {'sqlite', 'sqlite3'}:
+        return 'django.db.backends.sqlite3'
+    return engine
+
+
+def _database_from_url(url: str) -> dict:
+    parsed = urlparse(url)
+    engine = _normalize_db_engine(parsed.scheme)
+    if engine == 'django.db.backends.sqlite3':
+        # sqlite:////absolute/path.db or sqlite:///relative/path.db
+        name = parsed.path or ''
+        if name.startswith('/') and parsed.netloc:
+            name = f'//{parsed.netloc}{name}'
+        return {'ENGINE': engine, 'NAME': name}
+    if engine != 'django.db.backends.postgresql':
+        raise ValueError(f'Unsupported DATABASE_URL scheme: {parsed.scheme}')
+
+    options = {k: v[-1] for k, v in parse_qs(parsed.query).items() if v}
+    db = {
+        'ENGINE': engine,
+        'NAME': (parsed.path or '').lstrip('/'),
+        'USER': parsed.username or '',
+        'PASSWORD': parsed.password or '',
+        'HOST': parsed.hostname or '',
+        'PORT': str(parsed.port or ''),
     }
+    if options:
+        db['OPTIONS'] = options
+    return db
+
+
+def _database_from_env() -> dict:
+    engine = _normalize_db_engine(
+        os.environ.get('DB_ENGINE', 'django.db.backends.sqlite3')
+    )
+    if engine == 'django.db.backends.sqlite3':
+        name = os.environ.get('DB_NAME') or (BASE_DIR / 'db.sqlite3')
+        return {'ENGINE': engine, 'NAME': name}
+
+    return {
+        'ENGINE': engine,
+        'NAME': os.environ.get('DB_NAME')
+        or os.environ.get('POSTGRES_DB')
+        or '',
+        'USER': os.environ.get('DB_USER')
+        or os.environ.get('POSTGRES_USER')
+        or '',
+        'PASSWORD': os.environ.get('DB_PASSWORD')
+        or os.environ.get('POSTGRES_PASSWORD')
+        or '',
+        'HOST': os.environ.get('DB_HOST')
+        or os.environ.get('POSTGRES_HOST')
+        or 'localhost',
+        'PORT': os.environ.get('DB_PORT')
+        or os.environ.get('POSTGRES_PORT')
+        or '',
+    }
+
+
+DATABASE_URL = os.environ.get('DATABASE_URL')
+DATABASES = {
+    'default': _database_from_url(DATABASE_URL)
+    if DATABASE_URL
+    else _database_from_env()
 }
 
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://133.125.84.34",
 ]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
+        # 'rest_framework.authentication.SessionAuthentication',
     ],
 }
 

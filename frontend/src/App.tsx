@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Layout from './components/Layout';
@@ -7,31 +7,12 @@ import CourseDetail from './pages/CourseDetail';
 import CourseCreate from './pages/CourseCreate';
 import CalendarPage from './pages/CalendarPage';
 
-const DebugInfo = () => {
-  const location = useLocation();
-  return (
-    <div style={{ position: 'fixed', bottom: 0, left: 0, background: 'rgba(0,0,0,0.8)', color: 'lime', padding: '10px', zIndex: 9999 }}>
-      <p>Mode: {import.meta.env.MODE}</p>
-      <p>Router: HashRouter</p>
-      <p>Pathname: {location.pathname}</p>
-    </div>
-  );
-};
+
 
 function App() {
   return (
-    <HashRouter>
-      <DebugInfo />
+    <BrowserRouter>
       <Routes>
-        {/* Wildcard to catch everything and show what's happening */}
-        <Route path="*" element={
-          <div style={{ color: 'white', padding: 20 }}>
-            <h1>Routing Debug</h1>
-            <p>No route matched!</p>
-            <p>Try clicking: <a href="/rakutan/dashboard" style={{ color: 'cyan' }}>/rakutan/dashboard</a></p>
-          </div>
-        } />
-
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -42,8 +23,10 @@ function App() {
           <Route path="/courses/new" element={<CourseCreate />} />
           <Route path="/courses/:id" element={<CourseDetail />} />
         </Route>
+
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 }
 
